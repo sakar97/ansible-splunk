@@ -1,0 +1,32 @@
+---
+# defaults file for splunk-ansible
+# Username and password for Splunk Enterprise admin user
+splunk_user: admin
+splunk_pass: splunk123
+
+# Splunk Installation
+
+# Whether to download (wget) the tgz installer from Splunk (true, default)
+#   or upload the tgz from the ./files/ directory of this project (false)
+download_tgz_from_splunk_servers: true
+
+
+# User and group that will run splunkd on the OS and own Splunk files
+os_user: splunk
+os_group: splunk
+
+# $SPLUNK_HOME path
+splunk_home: /opt/splunk
+splunk_base_path: /opt
+
+# Splunk Configuration Settings
+
+# Allow Splunk to check for updates? 
+check_for_updates: true
+
+
+# Latest Splunk Enterprise version, filename, checksum, and hashing algorith (for wget pull)
+splunk_version: 8.2.3
+splunk_tgz: splunk-8.2.3-cd0848707637-Linux-x86_64.tgz
+splunk_tgz_checksum: 7ebcbef3c6ed0c2ef1ca9b3dc4aad362
+

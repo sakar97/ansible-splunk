@@ -1,0 +1,144 @@
+
+---
+
+- name: Add Splunk group
+  group:
+    name: "{{ os_group }}"
+    state: present  
+  become: yes  
+
+- name: Add Splunk user with the home dir /home/Splunk/
+  user:
+    name: "{{ os_user }}"
+    group: "{{ os_group }}"
+    home: /home/{{ os_user }}/
+    shell: /bin/bash
+    comment: Splunk User
+  become: yes
+
+- name: Create {{ splunk_home }} dir
+  file:
+    path: "{{ splunk_home }}"
+    state: directory
+    mode: '0755'  
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+  become: yes
+
+
+- name: Check for the presence of /home/{{ os_user }}/{{ splunk_tgz }}
+  stat: 
+    path: /home/{{ os_user }}/{{ splunk_tgz }}
+    get_checksum: yes  
+    checksum_algorithm: md5
+  register: splunk_tgz_downloaded_flag
+  become: yes
+
+- name: Download (wget) {{ splunk_tgz }}
+  get_url:
+    url: "https://download.splunk.com/products/splunk/releases/{{ splunk_version }}/linux/{{ splunk_tgz }}"
+    dest: /home/{{ os_user }}
+    mode: '0640'  
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+    timeout: 20
+  become: yes
+  when: splunk_tgz_downloaded_flag.stat.exists == False and download_tgz_from_splunk_servers 
+
+- name: Upload ./files/{{ splunk_tgz }} (local) to /home/{{ os_user }}/ (remote)
+  copy:
+    src: "files/{{ splunk_tgz }}"
+    dest: /home/{{ os_user }}
+    mode: '0640'
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+  become: yes
+  when: splunk_tgz_downloaded_flag.stat.exists == False and not download_tgz_from_splunk_servers  
+
+- name: Extract {{ splunk_tgz }} to {{ splunk_home }} to install
+  unarchive:
+    src: /home/{{ os_user }}/{{ splunk_tgz }}
+    dest: "{{ splunk_base_path }}"
+    remote_src: yes
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+  become: yes
+
+
+- name: -user-seed.conf- Create file for default admin creds
+  template:
+    src: user-seed.conf.j2
+    dest: "{{ splunk_home }}/etc/system/local/user-seed.conf"
+  become: yes
+
+- name: "-.ui_login- Touch {{ splunk_home }}/etc/.ui_login"
+  file:
+    path: "{{ splunk_home }}/etc/.ui_login"
+    state: touch
+    mode: '0644'
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+  become: yes   
+
+- name: -user-prefs.conf- Create file for default user/UI preferences
+  template:
+    src: user-prefs.conf.j2
+    dest: "{{ splunk_home }}/etc/system/local/user-prefs.conf"
+  become: yes
+
+- name: -ui-tour.conf- Create file to disable default search tour
+  template:
+    src: ui-tour.conf.j2
+    dest: "{{ splunk_home }}/etc/system/local/ui-tour.conf"
+  become: yes
+
+#- name: -limits.conf- Set reasonable saved search limits (increased) for ES
+ # template:
+  #  src: limits.conf.j2
+   # dest: "{{ splunk_home }}/etc/system/local/limits.conf"
+  #become: yes 
+
+- name: -web.conf- Create file to disable SSL and set up file for additional adds
+  template:
+    src: web.conf.j2
+    dest: "{{ splunk_home }}/etc/system/local/web.conf"
+  become: yes 
+
+- name: Set {{ splunk_home }} owner & group recursively
+  file:
+    path: "{{ splunk_home }}"
+    state: directory
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+    recurse: yes
+  become: yes  
+
+- name: Ensure default Splunk systemd unit file does not already exist
+  file:
+    path: /etc/init.d/splunk
+    state: absent
+  become: yes
+
+- name: Splunk enable boot-start
+  command: "{{ splunk_home }}/bin/splunk enable boot-start -systemd-managed 0 -user {{ os_user }} --no-prompt --answer-yes --accept-license"
+  become: yes  
+
+- name: After Splunkd.service update reload the systemd daemon units
+  command: systemctl daemon-reload
+  become: yes
+  when: 
+    - ansible_distribution == "Ubuntu" 
+
+- name: Start Splunk for the first time
+  command: "{{ splunk_home }}/bin/splunk start --no-prompt --answer-yes --accept-license"
+  become: yes  
+#  when: install_method == "initd"
+
+- name: "Create symlink to splunk in /usr/local/bin"
+  file:
+    src: "{{ splunk_home }}/bin/splunk"
+    path: /usr/local/bin/splunk
+    state: link
+    owner: "{{ os_user }}"
+    group: "{{ os_group }}"
+  become: yes

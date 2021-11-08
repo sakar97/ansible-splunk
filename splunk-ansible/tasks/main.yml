@@ -1,0 +1,5 @@
+---
+ - import_tasks: prereq.yml
+ - import_tasks: install.yml
+
+# tasks file for splunk-ansible
